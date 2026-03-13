@@ -139,7 +139,7 @@ npm run build
 
 ## 站点配置
 
-站点级品牌与基础信息统一放在根目录 `site.config.ts`：
+站点级品牌与基础信息统一通过根目录 `site.config.ts` 选择：
 
 - `title`：站点标题
 - `titleSeparator`：页面标题连接符
@@ -149,7 +149,9 @@ npm run build
 - `footerHtml`：页脚 HTML
 - `githubUrl`：GitHub 仓库地址
 
-修改这些配置后，需要重新执行 `npm run build`，再启动生产服务。
+- `npm run dev` 会读取 `site.config.dev.ts`
+- `npm run build` 和生产环境会读取 `site.config.prod.ts`
+- 修改这些配置后，需要重新执行 `npm run build`，再启动生产服务
 
 ## 贡献建议
 

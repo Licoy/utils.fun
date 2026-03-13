@@ -128,7 +128,7 @@ npm run build
 
 ## Site Configuration
 
-Site-level branding and base settings live in the root-level `site.config.ts` file:
+Site-level branding and base settings are selected through the root-level `site.config.ts` file:
 
 - `title`: site title
 - `titleSeparator`: page title separator
@@ -138,7 +138,9 @@ Site-level branding and base settings live in the root-level `site.config.ts` fi
 - `footerHtml`: footer HTML
 - `githubUrl`: GitHub repository URL
 
-After changing these settings, run `npm run build` again before starting the production server.
+- `npm run dev` reads `site.config.dev.ts`
+- `npm run build` and production runtime read `site.config.prod.ts`
+- After changing these settings, run `npm run build` again before starting the production server
 
 ## Contributing
 

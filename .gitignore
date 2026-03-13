@@ -8,3 +8,5 @@ yarn-error.log
 error.log
 localtest
 .DS_Store
+/site.config.dev.ts
+/site.config.prod.ts
