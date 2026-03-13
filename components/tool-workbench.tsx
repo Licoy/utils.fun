@@ -78,6 +78,136 @@ type ToolWorkbenchProps = {
 
 type Dictionary = ReturnType<typeof getDictionary>;
 
+type PasswordOptions = {
+  length: number;
+  lower: boolean;
+  upper: boolean;
+  digits: boolean;
+  symbols: boolean;
+};
+
+type PasswordHistoryEntry = {
+  value: string;
+  createdAt: string;
+};
+
+type QrLogoPosition = "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+function createRandomPassword({
+  length,
+  lower,
+  upper,
+  digits,
+  symbols,
+}: PasswordOptions) {
+  const groups = [
+    lower ? "abcdefghijklmnopqrstuvwxyz" : "",
+    upper ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "",
+    digits ? "0123456789" : "",
+    symbols ? "!@#$%^&*()_+-=[]{}<>?" : "",
+  ].filter(Boolean);
+
+  if (!groups.length) {
+    return "";
+  }
+
+  const charset = groups.join("");
+  const values = new Uint32Array(length);
+  crypto.getRandomValues(values);
+  return Array.from(values, (value) => charset[value % charset.length]).join("");
+}
+
+function normalizePasswordHistory(raw: unknown) {
+  if (!Array.isArray(raw)) {
+    return [] as PasswordHistoryEntry[];
+  }
+
+  return raw
+    .flatMap((item) => {
+      if (typeof item === "string") {
+        return item ? [{ value: item, createdAt: "" }] : [];
+      }
+
+      if (!item || typeof item !== "object") {
+        return [];
+      }
+
+      const value = "value" in item ? item.value : undefined;
+      const createdAt = "createdAt" in item ? item.createdAt : undefined;
+      if (typeof value !== "string" || !value) {
+        return [];
+      }
+
+      return [
+        {
+          value,
+          createdAt: typeof createdAt === "string" ? createdAt : "",
+        },
+      ];
+    })
+    .slice(0, 10);
+}
+
+function recordPasswordHistory(history: PasswordHistoryEntry[], value: string) {
+  return [
+    {
+      value,
+      createdAt: new Date().toISOString(),
+    },
+    ...history.filter((item) => item.value !== value),
+  ].slice(0, 10);
+}
+
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
+function getQrLogoPlacement(
+  position: QrLogoPosition,
+  canvasSize: number,
+  logoWidth: number,
+  logoHeight: number,
+  padding: number,
+) {
+  switch (position) {
+    case "top-left":
+      return { x: padding, y: padding };
+    case "top-right":
+      return { x: canvasSize - logoWidth - padding, y: padding };
+    case "bottom-left":
+      return { x: padding, y: canvasSize - logoHeight - padding };
+    case "bottom-right":
+      return {
+        x: canvasSize - logoWidth - padding,
+        y: canvasSize - logoHeight - padding,
+      };
+    case "center":
+    default:
+      return {
+        x: (canvasSize - logoWidth) / 2,
+        y: (canvasSize - logoHeight) / 2,
+      };
+  }
+}
+
 const worldTimezoneMap = {
   "Etc/GMT": { zh: "协调世界时", en: "UTC" },
   "Asia/Shanghai": { zh: "中国上海", en: "Shanghai" },
@@ -1059,46 +1189,58 @@ function RandomPasswordTool({ dict }: { dict: ReturnType<typeof getDictionary> }
   const [digits, setDigits] = useState(true);
   const [symbols, setSymbols] = useState(false);
   const [password, setPassword] = useState("");
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<PasswordHistoryEntry[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const raw = window.localStorage.getItem("utilsfun:password-history");
-      if (!raw) {
-        return;
-      }
-
-      try {
-        setHistory(JSON.parse(raw) as string[]);
-      } catch {
-        setHistory([]);
-      }
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  function generate() {
-    const groups = [
-      lower ? "abcdefghijklmnopqrstuvwxyz" : "",
-      upper ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "",
-      digits ? "0123456789" : "",
-      symbols ? "!@#$%^&*()_+-=[]{}<>?" : "",
-    ].filter(Boolean);
-
-    if (!groups.length) {
+    const raw = window.localStorage.getItem("utilsfun:password-history");
+    if (!raw) {
+      setHistoryReady(true);
       return;
     }
 
-    const charset = groups.join("");
-    const values = new Uint32Array(length);
-    crypto.getRandomValues(values);
-    const next = Array.from(values, (value) => charset[value % charset.length]).join("");
+    try {
+      setHistory(normalizePasswordHistory(JSON.parse(raw)));
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryReady(true);
+    }
+  }, []);
+
+  function generate() {
+    const next = createRandomPassword({ length, lower, upper, digits, symbols });
+    if (!next) {
+      setPassword("");
+      return;
+    }
+
     setPassword(next);
-    const nextHistory = [next, ...history.filter((item) => item !== next)].slice(0, 10);
-    setHistory(nextHistory);
-    window.localStorage.setItem("utilsfun:password-history", JSON.stringify(nextHistory));
+    setHistory((current) => {
+      const nextHistory = recordPasswordHistory(current, next);
+      window.localStorage.setItem("utilsfun:password-history", JSON.stringify(nextHistory));
+      return nextHistory;
+    });
   }
+
+  useEffect(() => {
+    if (!historyReady) {
+      return;
+    }
+
+    const next = createRandomPassword({ length, lower, upper, digits, symbols });
+    if (!next) {
+      setPassword("");
+      return;
+    }
+
+    setPassword(next);
+    setHistory((current) => {
+      const nextHistory = recordPasswordHistory(current, next);
+      window.localStorage.setItem("utilsfun:password-history", JSON.stringify(nextHistory));
+      return nextHistory;
+    });
+  }, [digits, historyReady, length, lower, symbols, upper]);
 
   return (
     <ToolCard title={dict.generate}>
@@ -1160,14 +1302,14 @@ function RandomPasswordTool({ dict }: { dict: ReturnType<typeof getDictionary> }
             />
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={generate} color="primary">
-              {dict.generate}
+            <Button
+              type="button"
+              onClick={generate}
+              color="primary"
+              disabled={!lower && !upper && !digits && !symbols}
+            >
+              {password ? t(dict, "重新生成", "Regenerate") : dict.generate}
             </Button>
-            {password ? (
-              <Button type="button" onClick={generate} color="primary">
-                {t(dict, "重新生成", "Regenerate")}
-              </Button>
-            ) : null}
           </div>
           <OutputArea label={dict.output} value={password} dict={dict} />
         </FormStack>
@@ -1185,12 +1327,19 @@ function RandomPasswordTool({ dict }: { dict: ReturnType<typeof getDictionary> }
               {history.length ? (
                 history.map((item) => (
                   <Button
-                    key={item}
+                    key={`${item.value}-${item.createdAt || "legacy"}`}
                     type="button"
-                    className="h-auto w-full justify-start px-3 py-2 font-mono text-xs"
-                    onClick={() => setPassword(item)}
+                    className="h-auto w-full justify-start px-3 py-2"
+                    onClick={() => setPassword(item.value)}
                   >
-                    {item}
+                    <div className="grid w-full gap-1 text-left">
+                      <span className="break-all font-mono text-xs leading-5">{item.value}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {item.createdAt && dayjs(item.createdAt).isValid()
+                          ? dayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss")
+                          : t(dict, "时间未知", "Unknown time")}
+                      </span>
+                    </div>
                   </Button>
                 ))
               ) : (
@@ -1208,22 +1357,78 @@ function RandomPasswordTool({ dict }: { dict: ReturnType<typeof getDictionary> }
 
 function QrCodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
   const siteConfig = useSiteConfig();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [text, setText] = useState(() => siteConfig.url);
   const [width, setWidth] = useState(240);
   const [dark, setDark] = useState("#000000");
   const [light, setLight] = useState("#ffffff");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPosition, setLogoPosition] = useState<QrLogoPosition>("center");
+  const [logoScale, setLogoScale] = useState(22);
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function generate() {
+    if (!canvasRef.current) {
+      return;
+    }
+
     setLoading(true);
     try {
-      const url = await QRCode.toDataURL(text, {
+      const canvas = canvasRef.current;
+      await QRCode.toCanvas(canvas, text, {
         width,
         margin: 2,
         color: { dark, light },
+        errorCorrectionLevel: logoFile ? "H" : "M",
       });
-      setResult(url);
+
+      if (logoFile) {
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error(t(dict, "无法绘制 Logo。", "Unable to draw the logo."));
+        }
+
+        const logoUrl = URL.createObjectURL(logoFile);
+        try {
+          const logo = await loadImageElement(logoUrl);
+          const maxLogoSize = Math.round(canvas.width * (logoScale / 100));
+          const aspectRatio = (logo.naturalWidth || logo.width) / (logo.naturalHeight || logo.height);
+          const logoWidth = aspectRatio >= 1 ? maxLogoSize : Math.round(maxLogoSize * aspectRatio);
+          const logoHeight = aspectRatio >= 1 ? Math.round(maxLogoSize / aspectRatio) : maxLogoSize;
+          const padding = Math.max(10, Math.round(canvas.width * 0.06));
+          const placement = getQrLogoPlacement(
+            logoPosition,
+            canvas.width,
+            logoWidth,
+            logoHeight,
+            padding,
+          );
+          const backgroundPadding = Math.max(6, Math.round(maxLogoSize * 0.14));
+          const backgroundX = placement.x - backgroundPadding;
+          const backgroundY = placement.y - backgroundPadding;
+          const backgroundWidth = logoWidth + backgroundPadding * 2;
+          const backgroundHeight = logoHeight + backgroundPadding * 2;
+
+          context.save();
+          context.fillStyle = light;
+          drawRoundedRect(
+            context,
+            backgroundX,
+            backgroundY,
+            backgroundWidth,
+            backgroundHeight,
+            Math.max(10, Math.round(maxLogoSize * 0.18)),
+          );
+          context.fill();
+          context.drawImage(logo, placement.x, placement.y, logoWidth, logoHeight);
+          context.restore();
+        } finally {
+          URL.revokeObjectURL(logoUrl);
+        }
+      }
+
+      setResult(canvas.toDataURL("image/png"));
     } finally {
       setLoading(false);
     }
@@ -1257,6 +1462,45 @@ function QrCodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
               />
             </Field>
           </FormGrid>
+          <FormGrid>
+            <Field label={t(dict, "Logo 图片", "Logo image")}>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
+              />
+            </Field>
+            <NativeSelect
+              label={t(dict, "Logo 位置", "Logo position")}
+              value={logoPosition}
+              onChange={(value) => setLogoPosition(value as QrLogoPosition)}
+              options={[
+                { value: "center", label: t(dict, "中间", "Center") },
+                { value: "top-left", label: t(dict, "左上", "Top left") },
+                { value: "top-right", label: t(dict, "右上", "Top right") },
+                { value: "bottom-left", label: t(dict, "左下", "Bottom left") },
+                { value: "bottom-right", label: t(dict, "右下", "Bottom right") },
+              ]}
+              description={t(
+                dict,
+                "上传 Logo 后可选择放在中间或四个角落。",
+                "After uploading a logo, place it in the center or any corner.",
+              )}
+            />
+          </FormGrid>
+          <SliderField
+            label={t(dict, "Logo 大小", "Logo size")}
+            value={logoScale}
+            min={10}
+            max={30}
+            suffix="%"
+            description={t(
+              dict,
+              "建议控制在二维码宽度的 10% 到 30%。",
+              "Keeping the logo between 10% and 30% of the QR width is usually safest.",
+            )}
+            onChange={setLogoScale}
+          />
           <Button type="button" onClick={generate} disabled={loading || !text} color="primary">
             {loading ? <LoaderCircle className="size-4 animate-spin" /> : null}
             {dict.generate}
@@ -1275,6 +1519,7 @@ function QrCodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
             )}
           </div>
         </WorkbenchPanel>
+        <canvas ref={canvasRef} className="hidden" />
       </FormStack>
     </ToolCard>
   );
@@ -1374,16 +1619,18 @@ function WatermarkTool({
 }) {
   const siteConfig = useSiteConfig();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const renderRequestRef = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState(() =>
-    locale === "zh" ? `${siteConfig.title} 水印` : `${siteConfig.title} Watermark`,
+    locale === "zh" ? "仅供某某某使用，它用无效。" : "For a designated recipient only. Any other use is invalid.",
   );
-  const [color, setColor] = useState("#ffffff");
+  const [color, setColor] = useState("#000000");
   const [size, setSize] = useState(24);
   const [alpha, setAlpha] = useState(24);
   const [rotate, setRotate] = useState(-30);
   const [imageUrl, setImageUrl] = useState("");
   const [resultUrl, setResultUrl] = useState("");
+  const [rendering, setRendering] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -1418,49 +1665,88 @@ function WatermarkTool({
     });
   }
 
-  async function renderWatermark() {
+  useEffect(() => {
     if (!file || !canvasRef.current) {
+      renderRequestRef.current += 1;
+      setRendering(false);
       return;
     }
 
-    const bitmap = await createImageBitmap(file);
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bitmap, 0, 0);
-    ctx.fillStyle = color;
-    ctx.globalAlpha = alpha / 100;
-    ctx.font = `${size}px sans-serif`;
-    ctx.rotate((rotate * Math.PI) / 180);
-    const xGap = size * Math.max(text.length, 4);
-    const yGap = size * 3;
-    for (let x = -canvas.width; x < canvas.width * 1.5; x += xGap) {
-      for (let y = -canvas.height; y < canvas.height * 1.5; y += yGap) {
-        ctx.fillText(text, x, y);
+    const currentFile = file;
+    const requestId = renderRequestRef.current + 1;
+    renderRequestRef.current = requestId;
+    let isActive = true;
+    setRendering(true);
+
+    async function renderPreview() {
+      let bitmap: ImageBitmap | null = null;
+
+      try {
+        bitmap = await createImageBitmap(currentFile);
+        if (!isActive || requestId !== renderRequestRef.current || !canvasRef.current) {
+          return;
+        }
+
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          return;
+        }
+
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = alpha / 100;
+        ctx.font = `${size}px sans-serif`;
+        ctx.rotate((rotate * Math.PI) / 180);
+        const xGap = size * Math.max(text.length, 4);
+        const yGap = size * 3;
+        for (let x = -canvas.width; x < canvas.width * 1.5; x += xGap) {
+          for (let y = -canvas.height; y < canvas.height * 1.5; y += yGap) {
+            ctx.fillText(text, x, y);
+          }
+        }
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+
+        const blob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob((nextBlob) => resolve(nextBlob), "image/png");
+        });
+
+        if (!blob || !isActive || requestId !== renderRequestRef.current) {
+          return;
+        }
+
+        setResultUrl((current) => {
+          if (current) {
+            URL.revokeObjectURL(current);
+          }
+          return URL.createObjectURL(blob);
+        });
+      } catch {
+        setResultUrl((current) => {
+          if (current) {
+            URL.revokeObjectURL(current);
+          }
+          return "";
+        });
+      } finally {
+        bitmap?.close();
+        if (isActive && requestId === renderRequestRef.current) {
+          setRendering(false);
+        }
       }
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((nextBlob) => resolve(nextBlob), "image/png");
-    });
+    void renderPreview();
 
-    if (!blob) {
-      return;
-    }
-
-    setResultUrl((current) => {
-      if (current) {
-        URL.revokeObjectURL(current);
-      }
-      return URL.createObjectURL(blob);
-    });
-  }
+    return () => {
+      isActive = false;
+    };
+  }, [alpha, color, file, rotate, size, text]);
 
   function download() {
     if (!canvasRef.current || !resultUrl) {
@@ -1505,28 +1791,21 @@ function WatermarkTool({
             />
           </FormGrid>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={renderWatermark} disabled={!file} color="primary">
-              {dict.generate}
-            </Button>
-            <Button type="button" onClick={download} disabled={!resultUrl}>
+            <Button type="button" onClick={download} disabled={!resultUrl || rendering}>
+              {rendering ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
               {dict.download}
             </Button>
           </div>
         </FormStack>
         <FormStack className="gap-3">
-          {imageUrl && resultUrl ? (
-            <ImageComparePreview
-              beforeSrc={imageUrl}
-              afterSrc={resultUrl}
-              beforeAlt={t(dict, "原图", "Original")}
-              afterAlt={t(dict, "加水印后", "Watermarked")}
-              beforeLabel={t(dict, "原图", "Before")}
-              afterLabel={t(dict, "加水印后", "After")}
-            />
-          ) : imageUrl ? (
+          {imageUrl ? (
             <div className="overflow-hidden rounded-xl border border-border/70 bg-muted/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt={t(dict, "原图", "Original")} className="w-full" />
+              <img
+                src={resultUrl || imageUrl}
+                alt={resultUrl ? t(dict, "加水印后", "Watermarked") : t(dict, "原图", "Original")}
+                className="w-full"
+              />
             </div>
           ) : (
             <Alert
@@ -1539,9 +1818,16 @@ function WatermarkTool({
               )}
             />
           )}
-          {imageUrl && !resultUrl ? (
-            <p className="text-sm text-muted-foreground">
-              {t(dict, "点击“生成”后可拖动查看加水印前后对比。", "Run Generate to compare before and after with the slider.")}
+          {imageUrl ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              {rendering ? <LoaderCircle className="size-4 animate-spin" /> : null}
+              {rendering
+                ? t(dict, "正在生成最新水印预览…", "Generating the latest watermark preview...")
+                : t(
+                    dict,
+                    "上传图片后会立即生成预览，调整参数也会自动更新。",
+                    "A preview is generated right after upload and updates automatically as you tweak settings.",
+                  )}
             </p>
           ) : null}
           <canvas ref={canvasRef} className="hidden" />
@@ -2780,15 +3066,14 @@ function CronTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
   async function calculate() {
     try {
       const parser = await import("cron-parser");
-      const parseExpression =
-        (parser as { parseExpression?: (value: string) => { next: () => Date } }).parseExpression ??
-        (parser as { default?: { parseExpression?: (value: string) => { next: () => Date } } }).default?.parseExpression;
+      const cronExpressionParser = parser.CronExpressionParser ?? parser.default;
+      const parseExpression = cronExpressionParser?.parse;
       if (!parseExpression) {
         throw new Error(t(dict, "Cron 解析器不可用", "Cron parser not available"));
       }
-      const interval = parseExpression(expression);
+      const interval = parseExpression(expression.trim());
       const next = Array.from({ length: 10 }, () =>
-        dayjs(interval.next()).format("YYYY-MM-DD HH:mm:ss"),
+        dayjs(interval.next().toDate()).format("YYYY-MM-DD HH:mm:ss"),
       );
       setRows(next);
       setMessage("");
@@ -3367,10 +3652,12 @@ function RandomGroupTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function QrCodeDecodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
+  const decodeRequestRef = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
+  const [decoding, setDecoding] = useState(false);
 
   useEffect(() => {
     if (!file) {
@@ -3382,13 +3669,13 @@ function QrCodeDecodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  async function decode() {
-    if (!file) {
-      return;
-    }
-
+  async function decodeFile(targetFile: File) {
+    const requestId = decodeRequestRef.current + 1;
+    decodeRequestRef.current = requestId;
+    setDecoding(true);
+    setError("");
+    const imageUrl = URL.createObjectURL(targetFile);
     try {
-      const imageUrl = URL.createObjectURL(file);
       const image = await loadImageElement(imageUrl);
       const canvas = document.createElement("canvas");
       canvas.width = image.naturalWidth || image.width;
@@ -3402,7 +3689,10 @@ function QrCodeDecodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
       const decoded = jsQR(imageData.data, canvas.width, canvas.height, {
         inversionAttempts: "attemptBoth",
       });
-      URL.revokeObjectURL(imageUrl);
+
+      if (requestId !== decodeRequestRef.current) {
+        return;
+      }
 
       if (!decoded) {
         setError(t(dict, "没有识别到二维码内容。", "No QR code could be detected in this image."));
@@ -3413,9 +3703,24 @@ function QrCodeDecodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
       setError("");
       setOutput(decoded.data);
     } catch (error) {
-      setError(error instanceof Error ? error.message : t(dict, "识别失败", "Decode failed"));
-      setOutput("");
+      if (requestId === decodeRequestRef.current) {
+        setError(error instanceof Error ? error.message : t(dict, "识别失败", "Decode failed"));
+        setOutput("");
+      }
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+      if (requestId === decodeRequestRef.current) {
+        setDecoding(false);
+      }
     }
+  }
+
+  async function decode() {
+    if (!file) {
+      return;
+    }
+
+    await decodeFile(file);
   }
 
   return (
@@ -3434,18 +3739,32 @@ function QrCodeDecodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
               type="file"
               accept="image/*"
               onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null);
+                const nextFile = event.target.files?.[0] ?? null;
+                setFile(nextFile);
                 setOutput("");
                 setError("");
+                if (!nextFile) {
+                  decodeRequestRef.current += 1;
+                  setDecoding(false);
+                  return;
+                }
+                void decodeFile(nextFile);
               }}
             />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={decode} disabled={!file} color="primary">
-              {dict.check}
+            <Button type="button" onClick={decode} disabled={!file || decoding} color="primary">
+              {decoding ? <LoaderCircle className="size-4 animate-spin" /> : null}
+              {decoding ? t(dict, "识别中", "Decoding") : dict.check}
             </Button>
           </div>
-          {error ? <Alert color="warning" title={error} /> : null}
+          {error ? (
+            <Alert
+              color="warning"
+              title={t(dict, "识别失败", "Decode failed")}
+              description={error}
+            />
+          ) : null}
         </WorkbenchPanel>
         <WorkbenchPanel title={t(dict, "预览与结果", "Preview and result")}>
           {previewUrl ? (
@@ -4186,7 +4505,7 @@ function EmojiCleanerTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
 }
 
 function CnIdTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
-  const [input, setInput] = useState("11010519491231002X");
+  const [input, setInput] = useState("");
   const result = useMemo(() => parseCnIdCard(input, dict), [dict, input]);
 
   return (

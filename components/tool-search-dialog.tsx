@@ -119,7 +119,8 @@ export function ToolSearchDialog({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={dict.searchPlaceholder}
-                  className="pr-16 pl-9"
+                  className="pr-24 pl-9"
+                  clearButtonClassName="right-11"
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && results[0]) {
                       event.preventDefault();
