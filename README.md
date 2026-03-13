@@ -151,6 +151,7 @@ npm run build
 
 - `npm run dev` 会读取 `site.config.dev.ts`
 - `npm run build` 和生产环境会读取 `site.config.prod.ts`
+- 如果这两个文件不存在，会直接回落到 `site.config.default.ts`
 - 修改这些配置后，需要重新执行 `npm run build`，再启动生产服务
 
 ## 贡献建议

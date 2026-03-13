@@ -140,6 +140,7 @@ Site-level branding and base settings are selected through the root-level `site.
 
 - `npm run dev` reads `site.config.dev.ts`
 - `npm run build` and production runtime read `site.config.prod.ts`
+- If either file is missing, the app falls back directly to `site.config.default.ts`
 - After changing these settings, run `npm run build` again before starting the production server
 
 ## Contributing
