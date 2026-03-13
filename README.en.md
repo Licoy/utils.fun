@@ -143,6 +143,32 @@ Site-level branding and base settings are selected through the root-level `site.
 - If either file is missing, the app falls back directly to `site.config.default.ts`
 - After changing these settings, run `npm run build` again before starting the production server
 
+Docker runtime can also override these settings directly with environment variables:
+
+- `SITE_TITLE`
+- `SITE_TITLE_SEPARATOR`
+- `SITE_DESCRIPTION`
+- `SITE_URL`
+- `SITE_LOGO_SRC`
+- `SITE_LOGO_ALT`
+- `SITE_LOGO_WIDTH`
+- `SITE_LOGO_HEIGHT`
+- `SITE_LOGO_HIDDEN`
+- `SITE_FOOTER_HTML`
+- `SITE_GITHUB_URL`
+
+Example:
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -e SITE_TITLE="My Utils" \
+  -e SITE_URL="https://tools.example.com" \
+  -e SITE_LOGO_SRC="https://cdn.example.com/logo.png" \
+  -e SITE_GITHUB_URL="https://github.com/example/utils" \
+  your-image:latest
+```
+
 ## Contributing
 
 Issues and pull requests are welcome. If you are contributing a new tool, it helps to include:

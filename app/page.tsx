@@ -2,19 +2,24 @@ import type { Metadata } from "next";
 
 import { HomePage } from "@/app/pages/home-page";
 import { getPreferredLocale } from "@/lib/locale-server";
+import { getSiteConfig } from "@/lib/site.server";
 import { buildAbsoluteUrl, buildDocumentTitle } from "@/lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getPreferredLocale();
+  const siteConfig = getSiteConfig();
 
   return {
     title: {
-      absolute: buildDocumentTitle(locale === "en" ? "Home" : "首页"),
+      absolute: buildDocumentTitle(
+        siteConfig,
+        locale === "en" ? "Home" : "首页",
+      ),
     },
     alternates: {
-      canonical: buildAbsoluteUrl("/"),
+      canonical: buildAbsoluteUrl(siteConfig, "/"),
       languages: {
-        en: buildAbsoluteUrl("/en"),
+        en: buildAbsoluteUrl(siteConfig, "/en"),
       },
     },
   };

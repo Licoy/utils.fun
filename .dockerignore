@@ -1,0 +1,13 @@
+.git
+.github
+.next
+.vscode
+.idea
+node_modules
+npm-debug.log
+yarn-error.log
+error.log
+localtest
+.DS_Store
+README.md
+README.en.md

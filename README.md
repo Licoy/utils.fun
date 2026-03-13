@@ -154,6 +154,32 @@ npm run build
 - 如果这两个文件不存在，会直接回落到 `site.config.default.ts`
 - 修改这些配置后，需要重新执行 `npm run build`，再启动生产服务
 
+Docker 运行时也支持直接用环境变量覆盖这些配置：
+
+- `SITE_TITLE`
+- `SITE_TITLE_SEPARATOR`
+- `SITE_DESCRIPTION`
+- `SITE_URL`
+- `SITE_LOGO_SRC`
+- `SITE_LOGO_ALT`
+- `SITE_LOGO_WIDTH`
+- `SITE_LOGO_HEIGHT`
+- `SITE_LOGO_HIDDEN`
+- `SITE_FOOTER_HTML`
+- `SITE_GITHUB_URL`
+
+示例：
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -e SITE_TITLE="My Utils" \
+  -e SITE_URL="https://tools.example.com" \
+  -e SITE_LOGO_SRC="https://cdn.example.com/logo.png" \
+  -e SITE_GITHUB_URL="https://github.com/example/utils" \
+  your-image:latest
+```
+
 ## 贡献建议
 
 欢迎提交 Issue 或 PR。若你准备新增工具，建议在说明中至少包含这些信息：

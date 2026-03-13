@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getTool, tools } from "@/lib/tools";
 import { ToolPage } from "@/app/pages/tool-page";
 import { getPreferredLocale } from "@/lib/locale-server";
+import { getSiteConfig } from "@/lib/site.server";
 import { buildAbsoluteUrl } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -18,6 +19,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const tool = getTool(slug);
   const locale = await getPreferredLocale();
+  const siteConfig = getSiteConfig();
   if (!tool) {
     return {};
   }
@@ -26,9 +28,9 @@ export async function generateMetadata({
     title: tool.title[locale],
     description: tool.description[locale],
     alternates: {
-      canonical: buildAbsoluteUrl(`/${tool.slug}`),
+      canonical: buildAbsoluteUrl(siteConfig, `/${tool.slug}`),
       languages: {
-        en: buildAbsoluteUrl(`/en/${tool.slug}`),
+        en: buildAbsoluteUrl(siteConfig, `/en/${tool.slug}`),
       },
     },
   };

@@ -1,27 +1,48 @@
 import { siteSettings } from "@/site.config";
+import type { SiteSettings } from "@/site.config.shared";
 
-const logo =
-  siteSettings.logo?.src
-    ? {
-        src: siteSettings.logo.src,
-        alt: siteSettings.logo.alt || `${siteSettings.title} logo`,
-        width: siteSettings.logo.width ?? 36,
-        height: siteSettings.logo.height ?? 36,
-      }
-    : null;
+export type SiteConfig = {
+  name: string;
+  title: string;
+  titleSeparator: string;
+  description: string;
+  url: string;
+  logo: {
+    src: string;
+    alt: string;
+    width: number;
+    height: number;
+  } | null;
+  footerHtml: string;
+  githubUrl: string;
+};
 
-export const siteConfig = {
-  name: siteSettings.title,
-  title: siteSettings.title,
-  titleSeparator: siteSettings.titleSeparator,
-  description: siteSettings.description,
-  url: siteSettings.url,
-  logo,
-  footerHtml: siteSettings.footerHtml,
-  githubUrl: siteSettings.githubUrl,
-} as const;
+export const defaultSiteConfig = createSiteConfig(siteSettings);
 
-export function buildDocumentTitle(pageTitle?: string) {
+export function createSiteConfig(settings: SiteSettings): SiteConfig {
+  const logo =
+    settings.logo?.src
+      ? {
+          src: settings.logo.src,
+          alt: settings.logo.alt || `${settings.title} logo`,
+          width: settings.logo.width ?? 36,
+          height: settings.logo.height ?? 36,
+        }
+      : null;
+
+  return {
+    name: settings.title,
+    title: settings.title,
+    titleSeparator: settings.titleSeparator,
+    description: settings.description,
+    url: settings.url,
+    logo,
+    footerHtml: settings.footerHtml,
+    githubUrl: settings.githubUrl,
+  };
+}
+
+export function buildDocumentTitle(siteConfig: SiteConfig, pageTitle?: string) {
   if (!pageTitle || pageTitle === siteConfig.title) {
     return siteConfig.title;
   }
@@ -29,6 +50,6 @@ export function buildDocumentTitle(pageTitle?: string) {
   return `${pageTitle} ${siteConfig.titleSeparator} ${siteConfig.title}`;
 }
 
-export function buildAbsoluteUrl(path = "/") {
+export function buildAbsoluteUrl(siteConfig: SiteConfig, path = "/") {
   return new URL(path, siteConfig.url).toString();
 }

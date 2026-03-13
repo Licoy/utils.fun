@@ -62,8 +62,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea as UITextarea } from "@/components/ui/textarea";
 import { CodeEditor } from "@/components/code-editor";
+import { useSiteConfig } from "@/components/providers/site-config-provider";
 import { getDictionary } from "@/lib/i18n";
-import { siteConfig } from "@/lib/site";
 import { type Locale, type Tool } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -77,11 +77,6 @@ type ToolWorkbenchProps = {
 };
 
 type Dictionary = ReturnType<typeof getDictionary>;
-
-const siteTitle = siteConfig.title;
-const siteUrl = siteConfig.url;
-const siteHost = new URL(siteUrl).host.replace(/^www\./, "");
-const siteEmail = `hello@${siteHost}`;
 
 const worldTimezoneMap = {
   "Etc/GMT": { zh: "协调世界时", en: "UTC" },
@@ -1212,7 +1207,8 @@ function RandomPasswordTool({ dict }: { dict: ReturnType<typeof getDictionary> }
 }
 
 function QrCodeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
-  const [text, setText] = useState(siteUrl);
+  const siteConfig = useSiteConfig();
+  const [text, setText] = useState(() => siteConfig.url);
   const [width, setWidth] = useState(240);
   const [dark, setDark] = useState("#000000");
   const [light, setLight] = useState("#ffffff");
@@ -1376,9 +1372,10 @@ function WatermarkTool({
   dict: ReturnType<typeof getDictionary>;
   locale: Locale;
 }) {
+  const siteConfig = useSiteConfig();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [text, setText] = useState(
+  const [text, setText] = useState(() =>
     locale === "zh" ? `${siteConfig.title} 水印` : `${siteConfig.title} Watermark`,
   );
   const [color, setColor] = useState("#ffffff");
@@ -2485,7 +2482,10 @@ function PluralizeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function EnglishCaseTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
-  const [text, setText] = useState(`${siteTitle} makes utilities feel calmer`);
+  const siteConfig = useSiteConfig();
+  const [text, setText] = useState(
+    () => `${siteConfig.title} makes utilities feel calmer`,
+  );
   const [mode, setMode] = useState("title");
   const result = useMemo(() => {
     switch (mode) {
@@ -2535,7 +2535,10 @@ function EnglishCaseTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function CnEnTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
-  const [text, setText] = useState(`欢迎使用 ${siteTitle}，请输入中英混排文本试试看。`);
+  const siteConfig = useSiteConfig();
+  const [text, setText] = useState(
+    () => `欢迎使用 ${siteConfig.title}，请输入中英混排文本试试看。`,
+  );
   const result = useMemo(() => optimizeMixedSpacing(text), [text]);
 
   return (
@@ -2582,8 +2585,11 @@ function TrimTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function RegexTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
+  const siteConfig = useSiteConfig();
+  const siteHost = new URL(siteConfig.url).host.replace(/^www\./, "");
+  const siteEmail = `hello@${siteHost}`;
   const [pattern, setPattern] = useState("/^[\\w.-]+@[\\w.-]+\\.[A-Za-z]{2,}$/");
-  const [text, setText] = useState(siteEmail);
+  const [text, setText] = useState(() => siteEmail);
   const [message, setMessage] = useState("");
 
   function validate() {
@@ -2615,8 +2621,9 @@ function RegexTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function MarkdownHtmlTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
+  const siteConfig = useSiteConfig();
   const [markdown, setMarkdown] = useState(
-    `# ${siteConfig.title}\n\n- 在线工具\n- 文本处理\n- 时间换算`,
+    () => `# ${siteConfig.title}\n\n- 在线工具\n- 文本处理\n- 时间换算`,
   );
   const [tab, setTab] = useState("html");
   const html = useMemo(() => marked.parse(markdown, { async: false }), [markdown]);
@@ -2660,7 +2667,10 @@ function CodeFormatterTool({
   dict: ReturnType<typeof getDictionary>;
   type: "json" | "css" | "js" | "html";
 }) {
-  const [input, setInput] = useState(getFormatterSample(type, siteTitle));
+  const siteConfig = useSiteConfig();
+  const [input, setInput] = useState(() =>
+    getFormatterSample(type, siteConfig.title),
+  );
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -2819,13 +2829,14 @@ function CronTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function WebSocketTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
+  const siteConfig = useSiteConfig();
   const socketRef = useRef<WebSocket | null>(null);
   const heartbeatRef = useRef<number | null>(null);
   const [address, setAddress] = useState("wss://echo.websocket.events");
   const [heartbeatEnabled, setHeartbeatEnabled] = useState(false);
   const [heartbeatInterval, setHeartbeatInterval] = useState("0");
   const [heartbeatMessage, setHeartbeatMessage] = useState("ping");
-  const [message, setMessage] = useState(`hello ${siteTitle}`);
+  const [message, setMessage] = useState(() => `hello ${siteConfig.title}`);
   const [logs, setLogs] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
 
@@ -4131,7 +4142,10 @@ function TextDedupeTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function EmojiCleanerTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
-  const [input, setInput] = useState(`Hi 👋 欢迎使用 ${siteConfig.title} 🎉`);
+  const siteConfig = useSiteConfig();
+  const [input, setInput] = useState(
+    () => `Hi 👋 欢迎使用 ${siteConfig.title} 🎉`,
+  );
   const [collapseSpaces, setCollapseSpaces] = useState(true);
   const result = useMemo(() => stripEmoji(input, collapseSpaces), [collapseSpaces, input]);
 
@@ -4323,11 +4337,12 @@ function PinyinTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
 }
 
 function JsonToTypesTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
+  const siteConfig = useSiteConfig();
   const [rootName, setRootName] = useState("RootObject");
-  const [input, setInput] = useState(
+  const [input, setInput] = useState(() =>
     JSON.stringify(
       {
-        name: siteTitle,
+        name: siteConfig.title,
         tools: [{ slug: "json", enabled: true }],
       },
       null,

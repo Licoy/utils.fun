@@ -1,19 +1,18 @@
 "use client";
 
 import type * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Github } from "lucide-react";
 
 import { MobileSidebarDrawer } from "@/components/mobile-sidebar-drawer";
+import { useSiteConfig } from "@/components/providers/site-config-provider";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeStyleToggle } from "@/components/theme-style-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ToolSearchDialog } from "@/components/tool-search-dialog";
 import { Button } from "@/components/ui/button";
 import { type PathPrefix } from "@/lib/locale";
-import { siteConfig } from "@/lib/site";
 import { type Locale } from "@/lib/tools";
 
 export function SiteHeader({
@@ -60,6 +59,7 @@ export function SiteHeader({
   mobileNavigationTitle?: string;
 }) {
   const activePathname = usePathname() ?? pathname ?? homePath;
+  const siteConfig = useSiteConfig();
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-xl">
@@ -76,7 +76,9 @@ export function SiteHeader({
           <Link href={homePath} className="flex items-center gap-3">
             {siteConfig.logo ? (
               <div className="flex size-8 items-center justify-center overflow-hidden rounded-xl bg-background sm:size-9">
-                <Image
+                {/* Use a plain img so Docker/runtime env can point to any local or remote logo URL. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={siteConfig.logo.src}
                   alt={siteConfig.logo.alt}
                   width={siteConfig.logo.width}
