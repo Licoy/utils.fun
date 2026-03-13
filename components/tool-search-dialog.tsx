@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { ToolIcon } from "@/components/tool-icon";
+import { useRouteTransition } from "@/components/providers/route-transition-provider";
 import { getDictionary } from "@/lib/i18n";
 import { buildToolPath, type PathPrefix } from "@/lib/locale";
 import type { Locale, Tool } from "@/lib/tools";
@@ -31,6 +32,7 @@ export function ToolSearchDialog({
 }) {
   const dict = getDictionary(locale);
   const router = useRouter();
+  const { start } = useRouteTransition();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isMac, setIsMac] = useState(false);
@@ -82,6 +84,7 @@ export function ToolSearchDialog({
   function openTool(tool: Tool) {
     setOpen(false);
     setQuery("");
+    start();
     router.push(buildToolPath(pathPrefix, tool.slug), { scroll: true });
   }
 

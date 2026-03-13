@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { getSiteConfig } from "@/lib/site.server";
+import { getDictionary } from "@/lib/i18n";
+import { getPreferredLocale } from "@/lib/locale-server";
 
-export default function NotFound() {
-  const siteConfig = getSiteConfig();
+export default async function NotFound() {
+  const locale = await getPreferredLocale();
+  const dict = getDictionary(locale);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-6 px-4 text-center">
@@ -12,10 +14,12 @@ export default function NotFound() {
         404
       </p>
       <h1 className="text-4xl font-semibold tracking-tight">
-        页面不存在
+        {dict.notFound}
       </h1>
       <Button asChild>
-        <Link href="/">{`返回 ${siteConfig.title}`}</Link>
+        <Link href="/">
+          {dict.backHome}
+        </Link>
       </Button>
     </main>
   );

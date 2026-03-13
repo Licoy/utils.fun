@@ -63,7 +63,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea as UITextarea } from "@/components/ui/textarea";
 import { CodeEditor } from "@/components/code-editor";
 import { useSiteConfig } from "@/components/providers/site-config-provider";
-import { getDictionary } from "@/lib/i18n";
+import { defaultLocale, getDictionary, getInlineMessageKey } from "@/lib/i18n";
 import { type Locale, type Tool } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -225,7 +225,10 @@ const worldTimezoneMap = {
 const cnToTwConverter = OpenCC.Converter({ from: "cn", to: "tw" });
 const twToCnConverter = OpenCC.Converter({ from: "tw", to: "cn" });
 
-type LocalizedText = Record<Locale, string>;
+type LocalizedText = {
+  zh: string;
+  en: string;
+};
 
 type RatioUnit = {
   value: string;
@@ -398,7 +401,7 @@ export function ToolWorkbench({ tool, locale, dict }: ToolWorkbenchProps) {
     case "random-group":
       return <RandomGroupTool dict={dict} />;
     case "watermark":
-      return <WatermarkTool dict={dict} locale={locale} />;
+      return <WatermarkTool dict={dict} />;
     case "image-compress":
       return <ImageCompressTool dict={dict} />;
     case "qrcode-decode":
@@ -500,12 +503,20 @@ export function ToolWorkbench({ tool, locale, dict }: ToolWorkbenchProps) {
   }
 }
 
+function usesChineseCopy(locale: Locale) {
+  return locale === defaultLocale || locale === "tw";
+}
+
 function isZh(dict: Dictionary) {
-  return dict.locale === "zh";
+  return usesChineseCopy(dict.locale);
 }
 
 function t(dict: Dictionary, zh: string, en: string) {
-  return isZh(dict) ? zh : en;
+  return dict.inlineMessages[getInlineMessageKey(zh, en)] ?? (isZh(dict) ? zh : en);
+}
+
+function pickLocalizedText(text: LocalizedText, locale: Locale) {
+  return usesChineseCopy(locale) ? text.zh : text.en;
 }
 
 function Badge({
@@ -1612,17 +1623,19 @@ function ScreenRecordTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
 
 function WatermarkTool({
   dict,
-  locale,
 }: {
   dict: ReturnType<typeof getDictionary>;
-  locale: Locale;
 }) {
   const siteConfig = useSiteConfig();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderRequestRef = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState(() =>
-    locale === "zh" ? "仅供某某某使用，它用无效。" : "For a designated recipient only. Any other use is invalid.",
+    t(
+      dict,
+      "仅供某某某使用，它用无效。",
+      "For a designated recipient only. Any other use is invalid.",
+    ),
   );
   const [color, setColor] = useState("#000000");
   const [size, setSize] = useState(24);
@@ -2589,8 +2602,8 @@ function DateCalculationTool({
                 value={condition}
                 onChange={setCondition}
                 options={[
-                  { label: locale === "zh" ? "增加" : "Add", value: "add" },
-                  { label: locale === "zh" ? "减少" : "Subtract", value: "subtract" },
+                  { label: t(dict, "增加", "Add"), value: "add" },
+                  { label: t(dict, "减少", "Subtract"), value: "subtract" },
                 ]}
               />
             </Field>
@@ -2672,7 +2685,7 @@ function WorldTimeTool({
     const source = dayjs.tz(value, baseTimezone);
     return Object.entries(worldTimezoneMap).map(([timezoneName, labels]) => ({
       timezone: timezoneName,
-      label: labels[locale],
+      label: pickLocalizedText(labels, locale),
       value: source.tz(timezoneName).format("YYYY-MM-DD HH:mm:ss"),
     }));
   }, [baseTimezone, locale, value]);
@@ -2686,7 +2699,7 @@ function WorldTimeTool({
             onChange={setBaseTimezone}
             options={Object.entries(worldTimezoneMap).map(([value, label]) => ({
               value,
-              label: `${value} (${label[locale]})`,
+              label: `${value} (${pickLocalizedText(label, locale)})`,
             }))}
           />
         </Field>
@@ -4136,7 +4149,7 @@ function UnitConverterTool({
                 value={groupValue}
                 onChange={onGroupChange}
                 options={unitGroups.map((group) => ({
-                  label: group.label[locale],
+                  label: pickLocalizedText(group.label, locale),
                   value: group.value,
                 }))}
               />
@@ -4149,7 +4162,7 @@ function UnitConverterTool({
                 value={fromUnit}
                 onChange={setFromUnit}
                 options={selectedGroup.units.map((unit) => ({
-                  label: `${unit.label[locale]} (${unit.symbol})`,
+                  label: `${pickLocalizedText(unit.label, locale)} (${unit.symbol})`,
                   value: unit.value,
                 }))}
               />
@@ -4159,7 +4172,7 @@ function UnitConverterTool({
                 value={toUnit}
                 onChange={setToUnit}
                 options={selectedGroup.units.map((unit) => ({
-                  label: `${unit.label[locale]} (${unit.symbol})`,
+                  label: `${pickLocalizedText(unit.label, locale)} (${unit.symbol})`,
                   value: unit.value,
                 }))}
               />
@@ -4185,7 +4198,7 @@ function UnitConverterTool({
                 <TableBody>
                   {rows.map((row) => (
                     <TableRow key={row.unit.value}>
-                      <TableCell>{`${row.unit.label[locale]} (${row.unit.symbol})`}</TableCell>
+                      <TableCell>{`${pickLocalizedText(row.unit.label, locale)} (${row.unit.symbol})`}</TableCell>
                       <TableCell className="font-mono">{row.value}</TableCell>
                     </TableRow>
                   ))}
@@ -5754,7 +5767,10 @@ function parseCnIdCard(input: string, dict: Dictionary) {
 
   return {
     valid: true,
-    region: cnIdRegionMap[value.slice(0, 2)]?.[dict.locale] ?? t(dict, "未知地区", "Unknown region"),
+    region:
+      (cnIdRegionMap[value.slice(0, 2)]
+        ? pickLocalizedText(cnIdRegionMap[value.slice(0, 2)], dict.locale)
+        : null) ?? t(dict, "未知地区", "Unknown region"),
     birthday,
     age,
     gender: Number(value[16]) % 2 === 0 ? t(dict, "女", "Female") : t(dict, "男", "Male"),

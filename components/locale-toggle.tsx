@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "@iconify/react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -11,27 +12,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
-  buildPath,
-  hasEnglishPath,
+  getLocaleFromPath,
+  getLocaleFlagIcon,
+  getLocaleLabel,
   persistLocaleCookie,
-  stripEnglishPath,
+  stripLocalePrefix,
 } from "@/lib/locale";
+import { locales } from "@/lib/i18n";
 import type { Locale } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export function LocaleToggle({
   locale,
   pathname,
-  options,
+  label,
   triggerClassName,
 }: {
   locale: Locale;
   pathname: string;
-  options: {
-    label: string;
-    zh: string;
-    en: string;
-  };
+  label: string;
   triggerClassName?: string;
 }) {
   const router = useRouter();
@@ -45,17 +44,18 @@ export function LocaleToggle({
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  const items = [
-    { key: "zh", label: options.zh, icon: "twemoji:flag-china" },
-    { key: "en", label: options.en, icon: "twemoji:flag-united-states" },
-  ] as const;
+  const items = locales.map((item) => ({
+    key: item,
+    label: getLocaleLabel(item),
+    icon: getLocaleFlagIcon(item),
+  }));
   const current = items.find((item) => item.key === locale) ?? items[0];
   const trigger = (
     <Button
       type="button"
       variant="outline"
       size="icon"
-      aria-label={options.label}
+      aria-label={label}
       className={cn("size-8 sm:size-10", triggerClassName)}
     >
       <Icon icon={current.icon} className="size-4 sm:size-5" />
@@ -73,29 +73,27 @@ export function LocaleToggle({
         {items.map((item) => (
           <DropdownMenuItem
             key={item.key}
-            className="gap-2"
+            className="flex items-center justify-between gap-3"
             onClick={() => {
-              const nextLocale = item.key as Locale;
-              const normalizedPathname = stripEnglishPath(pathname);
-              const nextPathname =
-                nextLocale === "en"
-                  ? hasEnglishPath(pathname)
-                    ? pathname
-                    : buildPath("/en", normalizedPathname)
-                  : normalizedPathname;
+              const nextLocale = item.key;
+              const normalizedPathname = stripLocalePrefix(pathname);
+              const isSeoPath = Boolean(getLocaleFromPath(pathname));
 
               persistLocaleCookie(nextLocale);
 
-              if (nextPathname === pathname) {
-                router.refresh();
+              if (isSeoPath) {
+                router.replace(normalizedPathname);
                 return;
               }
 
-              router.push(nextPathname);
+              router.refresh();
             }}
           >
-            <Icon icon={item.icon} className="size-5" />
-            {item.label}
+            <span className="flex items-center gap-2">
+              <Icon icon={item.icon} className="size-5" />
+              <span>{item.label}</span>
+            </span>
+            {locale === item.key ? <Check className="size-4" /> : null}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

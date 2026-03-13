@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import { ScrollBottomButton } from "@/components/scroll-bottom-button";
 import { SiteConfigProvider } from "@/components/providers/site-config-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { getDictionary } from "@/lib/i18n";
+import { getPreferredLocale } from "@/lib/locale-server";
+import { getLocaleDirection, getLocaleHtmlLang } from "@/lib/locale";
 import { getSiteConfig } from "@/lib/site.server";
 import {
   getInitialBodyStyle,
@@ -52,6 +55,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
+  const locale = await getPreferredLocale();
+  const dict = getDictionary(locale);
   const siteConfig = getSiteConfig();
   const preference = normalizeThemePreference(cookieStore.get(THEME_COOKIE_NAME)?.value);
   const style = normalizeThemeStyle(cookieStore.get(THEME_STYLE_COOKIE_NAME)?.value);
@@ -65,7 +70,8 @@ export default async function RootLayout({
 
   return (
     <html
-      lang="zh-CN"
+      lang={getLocaleHtmlLang(locale)}
+      dir={getLocaleDirection(locale)}
       suppressHydrationWarning
       className={htmlClassName}
       style={htmlStyle}
@@ -86,7 +92,12 @@ export default async function RootLayout({
         <SiteConfigProvider value={siteConfig}>
           <ThemeProvider>
             {children}
-            <ScrollBottomButton />
+            <ScrollBottomButton
+              labels={{
+                top: dict.scrollToTop,
+                bottom: dict.scrollToBottom,
+              }}
+            />
           </ThemeProvider>
         </SiteConfigProvider>
       </body>

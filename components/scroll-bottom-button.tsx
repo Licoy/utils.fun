@@ -1,12 +1,20 @@
 "use client";
 
-import { ChevronsDown } from "lucide-react";
+import { ChevronsDown, ChevronsUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-export function ScrollBottomButton() {
-  const [visible, setVisible] = useState(false);
+export function ScrollBottomButton({
+  labels,
+}: {
+  labels: {
+    top: string;
+    bottom: string;
+  };
+}) {
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
 
   useEffect(() => {
     const updateVisibility = () => {
@@ -16,7 +24,8 @@ export function ScrollBottomButton() {
       const distanceFromBottom = scrollHeight - viewportHeight - scrollTop;
       const hasOverflow = scrollHeight > viewportHeight + 160;
 
-      setVisible(hasOverflow && scrollTop > 240 && distanceFromBottom > 240);
+      setCanScrollUp(hasOverflow && scrollTop > 240);
+      setCanScrollDown(hasOverflow && distanceFromBottom > 240);
     };
 
     updateVisibility();
@@ -29,28 +38,48 @@ export function ScrollBottomButton() {
     };
   }, []);
 
-  if (!visible) {
+  if (!canScrollUp && !canScrollDown) {
     return null;
   }
 
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-40 sm:right-6 sm:bottom-6">
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        aria-label="Scroll to bottom"
-        title="Scroll to bottom"
-        className="pointer-events-auto size-11 rounded-full shadow-lg backdrop-blur"
-        onClick={() => {
-          window.scrollTo({
-            top: document.documentElement.scrollHeight,
-            behavior: "smooth",
-          });
-        }}
-      >
-        <ChevronsDown className="size-4" />
-      </Button>
+    <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex flex-col gap-2 sm:right-6 sm:bottom-6">
+      {canScrollUp ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={labels.top}
+          title={labels.top}
+          className="pointer-events-auto size-11 rounded-full shadow-lg backdrop-blur transition-transform hover:-translate-y-0.5"
+          onClick={() => {
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth",
+            });
+          }}
+        >
+          <ChevronsUp className="size-4" />
+        </Button>
+      ) : null}
+      {canScrollDown ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={labels.bottom}
+          title={labels.bottom}
+          className="pointer-events-auto size-11 rounded-full shadow-lg backdrop-blur transition-transform hover:translate-y-0.5"
+          onClick={() => {
+            window.scrollTo({
+              top: document.documentElement.scrollHeight,
+              behavior: "smooth",
+            });
+          }}
+        >
+          <ChevronsDown className="size-4" />
+        </Button>
+      ) : null}
     </div>
   );
 }

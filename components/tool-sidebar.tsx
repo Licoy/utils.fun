@@ -8,7 +8,7 @@ import { useFavorites } from "@/components/providers/favorites-provider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CategoryIcon, ToolIcon } from "@/components/tool-icon";
 import { getDictionary } from "@/lib/i18n";
-import { buildToolPath, type PathPrefix } from "@/lib/locale";
+import { buildToolPath, stripLocalePrefix, type PathPrefix } from "@/lib/locale";
 import { type Locale, type ToolSlug } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ export function ToolSidebar({
   const dict = getDictionary(locale);
   const { favorites, hydrated } = useFavorites();
   const pathname = usePathname() ?? "";
-  const derivedSlug = pathname.replace(/^\/en(?=\/|$)/, "").split("/").filter(Boolean)[0];
+  const derivedSlug = stripLocalePrefix(pathname).split("/").filter(Boolean)[0];
   const activeSlug = (currentSlug ?? derivedSlug) as ToolSlug | undefined;
   const favoriteItems = favorites
     .map((slug) => dict.tools.find((tool) => tool.slug === slug))

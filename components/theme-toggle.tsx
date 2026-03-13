@@ -1,6 +1,6 @@
 "use client";
 
-import { Monitor, MoonStar, SunMedium } from "lucide-react";
+import { Check, Monitor, MoonStar, SunMedium } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import {
@@ -89,11 +89,14 @@ export function ThemeToggle({
         {items.map((item) => (
           <DropdownMenuItem
             key={item.key}
-            className="gap-2"
+            className="flex items-center justify-between gap-3"
             onClick={() => onSelect(item.key)}
           >
-            {item.icon}
-            {item.label}
+            <span className="flex items-center gap-2">
+              {item.icon}
+              <span>{item.label}</span>
+            </span>
+            {currentTheme === item.key ? <Check className="size-4" /> : null}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

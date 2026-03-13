@@ -3,29 +3,27 @@ import type { Metadata } from "next";
 import { HomePage } from "@/app/pages/home-page";
 import { getPreferredLocale } from "@/lib/locale-server";
 import { getSiteConfig } from "@/lib/site.server";
-import { buildAbsoluteUrl, buildDocumentTitle } from "@/lib/site";
+import { getDictionary } from "@/lib/i18n";
+import { buildAbsoluteUrl, buildDocumentTitle, buildLanguageAlternateUrls } from "@/lib/site";
+import { buildLocalizedPath } from "@/lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getPreferredLocale();
   const siteConfig = getSiteConfig();
+  const dict = getDictionary(locale);
 
   return {
     title: {
-      absolute: buildDocumentTitle(
-        siteConfig,
-        locale === "en" ? "Home" : "首页",
-      ),
+      absolute: buildDocumentTitle(siteConfig, dict.homeLabel),
     },
     alternates: {
-      canonical: buildAbsoluteUrl(siteConfig, "/"),
-      languages: {
-        en: buildAbsoluteUrl(siteConfig, "/en"),
-      },
+      canonical: buildAbsoluteUrl(siteConfig, buildLocalizedPath(locale, "/")),
+      languages: buildLanguageAlternateUrls(siteConfig, "/"),
     },
   };
 }
 
-export default async function LocalizedHomePage() {
+export default async function HomePageRoute() {
   const locale = await getPreferredLocale();
 
   return <HomePage locale={locale} pathPrefix="" />;

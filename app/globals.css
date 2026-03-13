@@ -10,6 +10,29 @@ html {
   background-color: var(--background);
 }
 
+@keyframes route-transition-sweep {
+  0% {
+    transform: translateX(-55%);
+  }
+
+  100% {
+    transform: translateX(105%);
+  }
+}
+
+.route-transition-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.route-transition-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 45%, transparent 100%);
+  animation: route-transition-sweep 0.95s linear infinite;
+}
+
 @media (max-width: 640px) {
   [data-slot="input"],
   [data-slot="textarea"],

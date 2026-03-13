@@ -1,12 +1,11 @@
+import { getDictionary } from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Locale } from "@/lib/tools";
 
 export function ToolPageLoading({ locale }: { locale: Locale }) {
-  const loadingLabel = locale === "en" ? "Loading tool..." : "正在加载工具...";
-  const loadingHint =
-    locale === "en"
-      ? "Preparing the workspace and controls for this tool."
-      : "正在准备这个工具的工作区和参数面板。";
+  const dict = getDictionary(locale);
+  const loadingLabel = dict.toolLoadingLabel;
+  const loadingHint = dict.toolLoadingHint;
 
   return (
     <div className="min-w-0 space-y-10">

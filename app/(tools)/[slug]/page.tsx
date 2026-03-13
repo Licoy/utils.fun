@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getTool, tools } from "@/lib/tools";
 import { ToolPage } from "@/app/pages/tool-page";
 import { getPreferredLocale } from "@/lib/locale-server";
+import { buildLocalizedToolPath } from "@/lib/locale";
+import { buildAbsoluteUrl, buildLanguageAlternateUrls } from "@/lib/site";
 import { getSiteConfig } from "@/lib/site.server";
-import { buildAbsoluteUrl } from "@/lib/site";
+import { getTool, tools } from "@/lib/tools";
 
 export function generateStaticParams() {
   return tools.map((tool) => ({ slug: tool.slug }));
@@ -16,10 +17,11 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  const locale = await getPreferredLocale();
   const { slug } = await params;
   const tool = getTool(slug);
-  const locale = await getPreferredLocale();
   const siteConfig = getSiteConfig();
+
   if (!tool) {
     return {};
   }
@@ -28,15 +30,13 @@ export async function generateMetadata({
     title: tool.title[locale],
     description: tool.description[locale],
     alternates: {
-      canonical: buildAbsoluteUrl(siteConfig, `/${tool.slug}`),
-      languages: {
-        en: buildAbsoluteUrl(siteConfig, `/en/${tool.slug}`),
-      },
+      canonical: buildAbsoluteUrl(siteConfig, buildLocalizedToolPath(locale, tool.slug)),
+      languages: buildLanguageAlternateUrls(siteConfig, `/${tool.slug}`),
     },
   };
 }
 
-export default async function ZhToolPage({
+export default async function ToolRoutePage({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -44,6 +44,7 @@ export default async function ZhToolPage({
   const locale = await getPreferredLocale();
   const { slug } = await params;
   const tool = getTool(slug);
+
   if (!tool) {
     notFound();
   }

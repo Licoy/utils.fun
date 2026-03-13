@@ -1,3 +1,4 @@
+import { getLanguageAlternates } from "@/lib/locale";
 import { siteSettings } from "@/site.config";
 import type { SiteSettings } from "@/site.config.shared";
 
@@ -52,4 +53,13 @@ export function buildDocumentTitle(siteConfig: SiteConfig, pageTitle?: string) {
 
 export function buildAbsoluteUrl(siteConfig: SiteConfig, path = "/") {
   return new URL(path, siteConfig.url).toString();
+}
+
+export function buildLanguageAlternateUrls(siteConfig: SiteConfig, pathname: string) {
+  return Object.fromEntries(
+    Object.entries(getLanguageAlternates(pathname)).map(([language, path]) => [
+      language,
+      buildAbsoluteUrl(siteConfig, path),
+    ]),
+  );
 }

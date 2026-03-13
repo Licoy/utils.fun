@@ -33,8 +33,6 @@ export function SiteHeader({
     languageLabel: string;
     themeLabel: string;
     githubLabel: string;
-    localeOptionZh: string;
-    localeOptionEn: string;
     themeSystem: string;
     themeLight: string;
     themeDark: string;
@@ -98,11 +96,7 @@ export function SiteHeader({
           <LocaleToggle
             locale={locale}
             pathname={activePathname}
-            options={{
-              label: dict.languageLabel,
-              zh: dict.localeOptionZh,
-              en: dict.localeOptionEn,
-            }}
+            label={dict.languageLabel}
           />
           <ThemeToggle
             options={{
