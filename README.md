@@ -177,7 +177,7 @@ docker run -d \
   -e SITE_URL="https://tools.example.com" \
   -e SITE_LOGO_SRC="https://cdn.example.com/logo.png" \
   -e SITE_GITHUB_URL="https://github.com/example/utils" \
-  your-image:latest
+  licoy/utils.fun:latest
 ```
 
 ## 贡献建议
