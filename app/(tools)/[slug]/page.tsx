@@ -20,7 +20,7 @@ export async function generateMetadata({
   const locale = await getPreferredLocale();
   const { slug } = await params;
   const tool = getTool(slug);
-  const siteConfig = getSiteConfig();
+  const siteConfig = getSiteConfig(locale);
 
   if (!tool) {
     return {};

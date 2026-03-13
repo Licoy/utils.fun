@@ -25,7 +25,7 @@ export async function generateMetadata({
   }
 
   const tool = getTool(slug);
-  const siteConfig = getSiteConfig();
+  const siteConfig = getSiteConfig(locale);
 
   if (!tool) {
     return {};

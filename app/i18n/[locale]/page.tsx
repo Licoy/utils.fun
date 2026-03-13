@@ -26,7 +26,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const resolvedLocale = resolveLocale(locale);
-  const siteConfig = getSiteConfig();
+  const siteConfig = getSiteConfig(resolvedLocale);
   const dict = getDictionary(resolvedLocale);
 
   return {

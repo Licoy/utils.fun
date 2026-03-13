@@ -1,3 +1,12 @@
+import type { Locale } from "./lib/i18n/config";
+
+export type LocalizedSiteSettings = {
+  title?: string;
+  description?: string;
+  footerHtml?: string;
+  logoAlt?: string;
+};
+
 export type SiteSettings = {
   title: string;
   titleSeparator: string;
@@ -11,4 +20,5 @@ export type SiteSettings = {
   } | null;
   footerHtml: string;
   githubUrl: string;
+  i18n?: Partial<Record<Locale, LocalizedSiteSettings>>;
 };

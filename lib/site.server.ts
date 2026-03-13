@@ -2,12 +2,14 @@ import "server-only";
 
 import { unstable_noStore as noStore } from "next/cache";
 
-import { defaultSiteConfig, type SiteConfig } from "@/lib/site";
+import { createSiteConfig, type SiteConfig } from "@/lib/site";
+import { siteSettings } from "@/site.config";
+import { defaultLocale, type Locale } from "@/lib/i18n";
 
-export function getSiteConfig(): SiteConfig {
+export function getSiteConfig(locale: Locale = defaultLocale): SiteConfig {
   noStore();
 
-  return applySiteEnvOverrides(defaultSiteConfig, process.env);
+  return applySiteEnvOverrides(createSiteConfig(siteSettings, locale), process.env);
 }
 
 function applySiteEnvOverrides(

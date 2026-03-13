@@ -1,3 +1,4 @@
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import { getLanguageAlternates } from "@/lib/locale";
 import { siteSettings } from "@/site.config";
 import type { SiteSettings } from "@/site.config.shared";
@@ -20,25 +21,33 @@ export type SiteConfig = {
 
 export const defaultSiteConfig = createSiteConfig(siteSettings);
 
-export function createSiteConfig(settings: SiteSettings): SiteConfig {
+export function createSiteConfig(
+  settings: SiteSettings,
+  locale: Locale = defaultLocale,
+): SiteConfig {
+  const localizedSettings = settings.i18n?.[locale];
+  const title = localizedSettings?.title ?? settings.title;
+  const description = localizedSettings?.description ?? settings.description;
+  const footerHtml = localizedSettings?.footerHtml ?? settings.footerHtml;
+  const logoAlt = localizedSettings?.logoAlt ?? settings.logo?.alt ?? `${title} logo`;
   const logo =
     settings.logo?.src
       ? {
           src: settings.logo.src,
-          alt: settings.logo.alt || `${settings.title} logo`,
+          alt: logoAlt,
           width: settings.logo.width ?? 36,
           height: settings.logo.height ?? 36,
         }
       : null;
 
   return {
-    name: settings.title,
-    title: settings.title,
+    name: title,
+    title,
     titleSeparator: settings.titleSeparator,
-    description: settings.description,
+    description,
     url: settings.url,
     logo,
-    footerHtml: settings.footerHtml,
+    footerHtml,
     githubUrl: settings.githubUrl,
   };
 }

@@ -9,7 +9,7 @@ import { buildLocalizedPath } from "@/lib/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getPreferredLocale();
-  const siteConfig = getSiteConfig();
+  const siteConfig = getSiteConfig(locale);
   const dict = getDictionary(locale);
 
   return {

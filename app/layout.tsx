@@ -30,8 +30,9 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
 };
 
-export function generateMetadata(): Metadata {
-  const siteConfig = getSiteConfig();
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getPreferredLocale();
+  const siteConfig = getSiteConfig(locale);
 
   return {
     metadataBase: new URL(siteConfig.url),
@@ -57,7 +58,7 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const locale = await getPreferredLocale();
   const dict = getDictionary(locale);
-  const siteConfig = getSiteConfig();
+  const siteConfig = getSiteConfig(locale);
   const preference = normalizeThemePreference(cookieStore.get(THEME_COOKIE_NAME)?.value);
   const style = normalizeThemeStyle(cookieStore.get(THEME_STYLE_COOKIE_NAME)?.value);
   const mode = resolveThemeMode(preference);
