@@ -20,7 +20,7 @@ export const siteSettings = {
     "A clean online toolbox for development, text, time, image, encoding, and quick generation tasks.",
   url: "https://utils.fun",
   logo: {
-    src: "/favicon.ico",
+    src: "/logo.png",
     alt: "Utils.fun logo",
     width: 36,
     height: 36,

@@ -75,7 +75,7 @@ export function SiteHeader({
           ) : null}
           <Link href={homePath} className="flex items-center gap-3">
             {siteConfig.logo ? (
-              <div className="flex size-8 items-center justify-center overflow-hidden rounded-xl border border-border bg-background sm:size-9">
+              <div className="flex size-8 items-center justify-center overflow-hidden rounded-xl bg-background sm:size-9">
                 <Image
                   src={siteConfig.logo.src}
                   alt={siteConfig.logo.alt}
