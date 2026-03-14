@@ -77,6 +77,20 @@ export function stripLocalePrefix(pathname: string) {
   return pathname.replace(new RegExp(`^/${locale}(?=/|$)`), "") || "/";
 }
 
+export function getLocaleSwitchTargetPath(
+  pathname: string,
+  search = "",
+  hash = "",
+) {
+  const targetPathname = stripLocalePrefix(pathname || "/") || "/";
+  const normalizedSearch =
+    !search || search.startsWith("?") ? search : `?${search}`;
+  const normalizedHash =
+    !hash || hash.startsWith("#") ? hash : `#${hash}`;
+
+  return `${targetPathname}${normalizedSearch}${normalizedHash}` || "/";
+}
+
 export function getPathPrefix(locale: Locale): PathPrefix {
   return `/${locale}`;
 }

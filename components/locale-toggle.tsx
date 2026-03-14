@@ -2,7 +2,6 @@
 
 import { Icon } from "@iconify/react";
 import { Check } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   DropdownMenu,
@@ -12,11 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
-  getLocaleFromPath,
   getLocaleFlagIcon,
   getLocaleLabel,
+  getLocaleSwitchTargetPath,
   persistLocaleCookie,
-  stripLocalePrefix,
 } from "@/lib/locale";
 import { locales } from "@/lib/i18n";
 import type { Locale } from "@/lib/tools";
@@ -33,7 +31,6 @@ export function LocaleToggle({
   label: string;
   triggerClassName?: string;
 }) {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -76,17 +73,21 @@ export function LocaleToggle({
             className="flex items-center justify-between gap-3"
             onClick={() => {
               const nextLocale = item.key;
-              const normalizedPathname = stripLocalePrefix(pathname);
-              const isSeoPath = Boolean(getLocaleFromPath(pathname));
 
-              persistLocaleCookie(nextLocale);
-
-              if (isSeoPath) {
-                router.replace(normalizedPathname);
+              if (nextLocale === locale) {
                 return;
               }
 
-              router.refresh();
+              persistLocaleCookie(nextLocale);
+              const currentPathname = window.location.pathname || pathname;
+              const targetPath = getLocaleSwitchTargetPath(
+                currentPathname,
+                window.location.search,
+                window.location.hash,
+              );
+
+              // Force a document navigation so the next request always picks up the updated locale cookie.
+              window.location.replace(targetPath);
             }}
           >
             <span className="flex items-center gap-2">

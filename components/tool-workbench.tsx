@@ -1,12 +1,17 @@
 "use client";
 
 import {
+  CalendarClock,
+  Clock3,
   Download,
   History,
   LoaderCircle,
   MonitorUp,
   Play,
+  RefreshCw,
+  Sparkles,
   Square,
+  WandSparkles,
 } from "lucide-react";
 import imageCompression from "browser-image-compression";
 import CryptoJS from "crypto-js";
@@ -874,6 +879,16 @@ function FormStack({
   className?: string;
 }) {
   return <div className={cn("grid w-full gap-6", className)}>{children}</div>;
+}
+
+function StackedPanelActions({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("flex flex-wrap justify-center gap-2", className)}>{children}</div>;
 }
 
 function FormGrid({
@@ -3017,19 +3032,19 @@ function CodeFormatterTool({
         <Field label={dict.input}>
           <CodeEditor height={400} language={language} value={input} onChange={setInput} />
         </Field>
+        <StackedPanelActions>
+          <Button type="button" onClick={formatCode} disabled={busy} color="primary">
+            {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
+            {dict.format}
+          </Button>
+          <Button type="button" onClick={compressCode} color="primary">
+            {dict.compress}
+          </Button>
+        </StackedPanelActions>
         <Field label={dict.output}>
           <CodeEditor height={400} language={language} readOnly value={output} />
         </Field>
       </FormStack>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={formatCode} disabled={busy} color="primary">
-          {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
-          {dict.format}
-        </Button>
-        <Button type="button" onClick={compressCode} color="primary">
-          {dict.compress}
-        </Button>
-      </div>
     </ToolCard>
   );
 }
@@ -3044,83 +3059,925 @@ function SqlTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
         <Field label={dict.input}>
           <CodeEditor height={360} language="sql" value={input} onChange={setInput} />
         </Field>
+        <StackedPanelActions>
+          <Button
+            type="button"
+            color="primary"
+            onClick={() =>
+              setOutput(
+                formatSql(input, {
+                  language: "sql",
+                  keywordCase: "upper",
+                }),
+              )
+            }
+          >
+            {dict.format}
+          </Button>
+          <Button type="button" onClick={() => setOutput(input.replace(/\s+/g, " ").trim())} color="primary">
+            {dict.compress}
+          </Button>
+        </StackedPanelActions>
         <Field label={dict.output}>
           <CodeEditor height={360} language="sql" readOnly value={output} />
         </Field>
       </FormStack>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          color="primary"
-          onClick={() =>
-            setOutput(
-              formatSql(input, {
-                language: "sql",
-                keywordCase: "upper",
-              }),
-            )
-          }
-        >
-          {dict.format}
-        </Button>
-        <Button type="button" onClick={() => setOutput(input.replace(/\s+/g, " ").trim())} color="primary">
-          {dict.compress}
-        </Button>
-      </div>
     </ToolCard>
   );
 }
 
+type CronEditorMode = "builder" | "manual";
+type CronFieldKey = "second" | "minute" | "hour" | "dayOfMonth" | "month" | "dayOfWeek";
+type CronFieldMode = "every" | "step" | "range" | "specific" | "unspecified";
+
+type CronFieldState = {
+  mode: CronFieldMode;
+  start: string;
+  end: string;
+  step: string;
+  values: string;
+};
+
+type CronBuilderState = Record<CronFieldKey, CronFieldState>;
+
+type CronFieldDefinition = {
+  key: CronFieldKey;
+  label: LocalizedText;
+  shortLabel: LocalizedText;
+  hint: LocalizedText;
+  stepUnit: LocalizedText;
+  min: number;
+  max: number;
+  defaultSpecific: string;
+  allowUnspecified?: boolean;
+  example?: LocalizedText;
+};
+
+type CronFieldPreview = {
+  label: string;
+  shortLabel: string;
+  value: string;
+  description: string;
+};
+
+type CronNextRunRow = {
+  id: number;
+  date: string;
+  weekday: string;
+  time: string;
+  iso: string;
+};
+
+const cronFieldDefinitions: CronFieldDefinition[] = [
+  {
+    key: "second",
+    label: { zh: "秒", en: "Seconds" },
+    shortLabel: { zh: "秒", en: "Sec" },
+    hint: { zh: "范围 0-59", en: "Range 0-59" },
+    stepUnit: { zh: "秒", en: "seconds" },
+    min: 0,
+    max: 59,
+    defaultSpecific: "0",
+    example: { zh: "例如 0、15、30", en: "For example: 0, 15, 30" },
+  },
+  {
+    key: "minute",
+    label: { zh: "分钟", en: "Minutes" },
+    shortLabel: { zh: "分", en: "Min" },
+    hint: { zh: "范围 0-59", en: "Range 0-59" },
+    stepUnit: { zh: "分钟", en: "minutes" },
+    min: 0,
+    max: 59,
+    defaultSpecific: "0",
+    example: { zh: "例如 0、15、30", en: "For example: 0, 15, 30" },
+  },
+  {
+    key: "hour",
+    label: { zh: "小时", en: "Hours" },
+    shortLabel: { zh: "时", en: "Hour" },
+    hint: { zh: "范围 0-23", en: "Range 0-23" },
+    stepUnit: { zh: "小时", en: "hours" },
+    min: 0,
+    max: 23,
+    defaultSpecific: "9",
+    example: { zh: "例如 0、9、18", en: "For example: 0, 9, 18" },
+  },
+  {
+    key: "dayOfMonth",
+    label: { zh: "日", en: "Day of month" },
+    shortLabel: { zh: "日", en: "Day" },
+    hint: { zh: "范围 1-31，可设为 ?", en: "Range 1-31, can be ?" },
+    stepUnit: { zh: "天", en: "days" },
+    min: 1,
+    max: 31,
+    defaultSpecific: "1",
+    allowUnspecified: true,
+    example: { zh: "例如 1、15、31", en: "For example: 1, 15, 31" },
+  },
+  {
+    key: "month",
+    label: { zh: "月份", en: "Month" },
+    shortLabel: { zh: "月", en: "Month" },
+    hint: { zh: "范围 1-12，也支持 JAN-DEC", en: "Range 1-12, also supports JAN-DEC" },
+    stepUnit: { zh: "个月", en: "months" },
+    min: 1,
+    max: 12,
+    defaultSpecific: "1",
+    example: { zh: "例如 1、6、12 或 JAN,MAR", en: "For example: 1, 6, 12 or JAN,MAR" },
+  },
+  {
+    key: "dayOfWeek",
+    label: { zh: "星期", en: "Day of week" },
+    shortLabel: { zh: "周", en: "Week" },
+    hint: { zh: "范围 0-7，也支持 MON-SUN，可设为 ?", en: "Range 0-7, also supports MON-SUN, can be ?" },
+    stepUnit: { zh: "周", en: "weeks" },
+    min: 0,
+    max: 7,
+    defaultSpecific: "MON",
+    allowUnspecified: true,
+    example: { zh: "例如 MON-FRI 或 1,3,5", en: "For example: MON-FRI or 1,3,5" },
+  },
+];
+
+const defaultManualCronExpression = "0 */10 * * * ?";
+
+function createCronFieldState(overrides: Partial<CronFieldState> = {}): CronFieldState {
+  return {
+    mode: "every",
+    start: "0",
+    end: "0",
+    step: "1",
+    values: "0",
+    ...overrides,
+  };
+}
+
+function createDefaultCronBuilderState(): CronBuilderState {
+  return {
+    second: createCronFieldState({
+      mode: "specific",
+      start: "0",
+      end: "59",
+      step: "1",
+      values: "0",
+    }),
+    minute: createCronFieldState({
+      mode: "step",
+      start: "0",
+      end: "59",
+      step: "10",
+      values: "0",
+    }),
+    hour: createCronFieldState({
+      mode: "every",
+      start: "0",
+      end: "23",
+      step: "1",
+      values: "9",
+    }),
+    dayOfMonth: createCronFieldState({
+      mode: "every",
+      start: "1",
+      end: "31",
+      step: "1",
+      values: "1",
+    }),
+    month: createCronFieldState({
+      mode: "every",
+      start: "1",
+      end: "12",
+      step: "1",
+      values: "1",
+    }),
+    dayOfWeek: createCronFieldState({
+      mode: "unspecified",
+      start: "0",
+      end: "7",
+      step: "1",
+      values: "MON-FRI",
+    }),
+  };
+}
+
+function createCronPresetState(presetId: string): CronBuilderState {
+  const state = createDefaultCronBuilderState();
+
+  switch (presetId) {
+    case "every-5-minutes":
+      state.minute = createCronFieldState({
+        mode: "step",
+        start: "0",
+        end: "59",
+        step: "5",
+        values: "0",
+      });
+      return state;
+    case "hourly":
+      state.minute = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "59",
+        step: "1",
+        values: "0",
+      });
+      return state;
+    case "daily":
+      state.minute = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "59",
+        step: "1",
+        values: "0",
+      });
+      state.hour = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "23",
+        step: "1",
+        values: "9",
+      });
+      return state;
+    case "workdays":
+      state.minute = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "59",
+        step: "1",
+        values: "0",
+      });
+      state.hour = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "23",
+        step: "1",
+        values: "9",
+      });
+      state.dayOfMonth = createCronFieldState({
+        mode: "unspecified",
+        start: "1",
+        end: "31",
+        step: "1",
+        values: "1",
+      });
+      state.dayOfWeek = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "7",
+        step: "1",
+        values: "MON-FRI",
+      });
+      return state;
+    case "monthly":
+      state.minute = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "59",
+        step: "1",
+        values: "0",
+      });
+      state.hour = createCronFieldState({
+        mode: "specific",
+        start: "0",
+        end: "23",
+        step: "1",
+        values: "9",
+      });
+      state.dayOfMonth = createCronFieldState({
+        mode: "specific",
+        start: "1",
+        end: "31",
+        step: "1",
+        values: "1",
+      });
+      state.dayOfWeek = createCronFieldState({
+        mode: "unspecified",
+        start: "0",
+        end: "7",
+        step: "1",
+        values: "MON",
+      });
+      return state;
+    default:
+      return state;
+  }
+}
+
+function getIntlLocale(locale: Locale) {
+  switch (locale) {
+    case "cn":
+      return "zh-CN";
+    case "tw":
+      return "zh-TW";
+    case "ja":
+      return "ja-JP";
+    case "ru":
+      return "ru-RU";
+    case "de":
+      return "de-DE";
+    case "es":
+      return "es-ES";
+    case "ar":
+      return "ar-SA";
+    case "ko":
+      return "ko-KR";
+    case "en":
+    default:
+      return "en-US";
+  }
+}
+
+function normalizeCronNumber(value: string, min: number, max: number, fallback: number) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function sanitizeCronSpecificValues(value: string, definition: CronFieldDefinition) {
+  const tokens = value
+    .split(/[,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return definition.defaultSpecific;
+  }
+
+  return tokens
+    .map((token) => {
+      if (token === "*" || token === "?") {
+        return token;
+      }
+
+      if (/^\d+$/.test(token)) {
+        return String(
+          normalizeCronNumber(token, definition.min, definition.max, Number(definition.defaultSpecific) || definition.min),
+        );
+      }
+
+      return token.toUpperCase();
+    })
+    .join(",");
+}
+
+function buildCronSegment(definition: CronFieldDefinition, state: CronFieldState) {
+  switch (state.mode) {
+    case "unspecified":
+      return definition.allowUnspecified ? "?" : "*";
+    case "every":
+      return "*";
+    case "step": {
+      const start = normalizeCronNumber(state.start, definition.min, definition.max, definition.min);
+      const step = Math.max(1, normalizeCronNumber(state.step, 1, definition.max - definition.min + 1, 1));
+      if (start === definition.min && step === 1) {
+        return "*";
+      }
+      return start === definition.min ? `*/${step}` : `${start}/${step}`;
+    }
+    case "range": {
+      const start = normalizeCronNumber(state.start, definition.min, definition.max, definition.min);
+      const end = normalizeCronNumber(state.end, definition.min, definition.max, definition.max);
+      const [from, to] = start <= end ? [start, end] : [end, start];
+      return from === to ? String(from) : `${from}-${to}`;
+    }
+    case "specific":
+    default:
+      return sanitizeCronSpecificValues(state.values, definition);
+  }
+}
+
+function buildCronExpressionFromState(state: CronBuilderState) {
+  const parts = cronFieldDefinitions.map((definition) => buildCronSegment(definition, state[definition.key]));
+  if (parts[3] === "?" && parts[5] === "?") {
+    parts[3] = "*";
+  }
+
+  return parts.join(" ");
+}
+
+function splitCronExpression(expression: string) {
+  const parts = expression
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 5) {
+    return [
+      { definition: cronFieldDefinitions[1], value: parts[0] },
+      { definition: cronFieldDefinitions[2], value: parts[1] },
+      { definition: cronFieldDefinitions[3], value: parts[2] },
+      { definition: cronFieldDefinitions[4], value: parts[3] },
+      { definition: cronFieldDefinitions[5], value: parts[4] },
+    ];
+  }
+
+  if (parts.length === 6) {
+    return cronFieldDefinitions.map((definition, index) => ({
+      definition,
+      value: parts[index],
+    }));
+  }
+
+  return [];
+}
+
+function describeCronSegment(dict: Dictionary, definition: CronFieldDefinition, value: string) {
+  const label = pickLocalizedText(definition.label, dict.locale);
+  const stepUnit = pickLocalizedText(definition.stepUnit, dict.locale);
+
+  if (value === "*") {
+    return t(dict, `每个${label}都执行`, `Runs on every ${label.toLowerCase()}`);
+  }
+
+  if (value === "?") {
+    return t(dict, "不指定该字段，由另一日期字段决定", "No specific value. Controlled by the other date field.");
+  }
+
+  const stepMatch = value.match(/^([^/]+)\/(\d+)$/);
+  if (stepMatch) {
+    return stepMatch[1] === "*"
+      ? t(dict, `每隔 ${stepMatch[2]} ${stepUnit}执行`, `Runs every ${stepMatch[2]} ${stepUnit}`)
+      : t(
+          dict,
+          `从 ${stepMatch[1]} 开始，每隔 ${stepMatch[2]} ${stepUnit}执行`,
+          `Runs every ${stepMatch[2]} ${stepUnit} starting from ${stepMatch[1]}`,
+        );
+  }
+
+  if (value.includes(",") || value.includes("L") || value.includes("W") || value.includes("#")) {
+    return t(dict, `指定值：${value}`, `Specific values: ${value}`);
+  }
+
+  if (value.includes("-")) {
+    return t(dict, `范围：${value}`, `Range: ${value}`);
+  }
+
+  return t(dict, `固定为 ${value}`, `Fixed at ${value}`);
+}
+
+function buildCronFieldPreview(dict: Dictionary, expression: string): CronFieldPreview[] {
+  return splitCronExpression(expression).map(({ definition, value }) => ({
+    label: pickLocalizedText(definition.label, dict.locale),
+    shortLabel: pickLocalizedText(definition.shortLabel, dict.locale),
+    value,
+    description: describeCronSegment(dict, definition, value),
+  }));
+}
+
+function CronFieldCard({
+  dict,
+  definition,
+  value,
+  onChange,
+}: {
+  dict: Dictionary;
+  definition: CronFieldDefinition;
+  value: CronFieldState;
+  onChange: (patch: Partial<CronFieldState>) => void;
+}) {
+  const options = [
+    { value: "every", label: t(dict, "任意值", "Every") },
+    { value: "step", label: t(dict, "按间隔", "Step") },
+    { value: "range", label: t(dict, "范围", "Range") },
+    { value: "specific", label: t(dict, "指定值", "Specific") },
+  ];
+
+  if (definition.allowUnspecified) {
+    options.push({ value: "unspecified", label: t(dict, "不指定 (?)", "No specific value (?)") });
+  }
+
+  return (
+    <div className="grid gap-4 rounded-2xl border border-border/70 bg-background/70 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <div className="font-medium">{pickLocalizedText(definition.label, dict.locale)}</div>
+          <p className="text-xs text-muted-foreground">{pickLocalizedText(definition.hint, dict.locale)}</p>
+        </div>
+        <Badge variant="outline" className="font-mono text-xs">
+          {buildCronSegment(definition, value)}
+        </Badge>
+      </div>
+      <NativeSelect
+        value={value.mode}
+        onChange={(next) => onChange({ mode: next as CronFieldMode })}
+        options={options}
+      />
+      {value.mode === "step" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            type="number"
+            min={definition.min}
+            max={definition.max}
+            value={value.start}
+            onChange={(event) => onChange({ start: event.target.value })}
+            placeholder={t(dict, "起始值", "Start")}
+          />
+          <Input
+            type="number"
+            min={1}
+            max={definition.max - definition.min + 1}
+            value={value.step}
+            onChange={(event) => onChange({ step: event.target.value })}
+            placeholder={t(dict, "间隔", "Step")}
+          />
+        </div>
+      ) : null}
+      {value.mode === "range" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            type="number"
+            min={definition.min}
+            max={definition.max}
+            value={value.start}
+            onChange={(event) => onChange({ start: event.target.value })}
+            placeholder={t(dict, "开始", "From")}
+          />
+          <Input
+            type="number"
+            min={definition.min}
+            max={definition.max}
+            value={value.end}
+            onChange={(event) => onChange({ end: event.target.value })}
+            placeholder={t(dict, "结束", "To")}
+          />
+        </div>
+      ) : null}
+      {value.mode === "specific" ? (
+        <div className="grid gap-2">
+          <Input
+            value={value.values}
+            onChange={(event) => onChange({ values: event.target.value })}
+            placeholder={definition.defaultSpecific}
+            className="font-mono"
+          />
+          {definition.example ? (
+            <p className="text-xs text-muted-foreground">{pickLocalizedText(definition.example, dict.locale)}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {value.mode === "every" || value.mode === "unspecified" ? (
+        <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          {value.mode === "every"
+            ? t(dict, "当前字段不限制。", "This field is not restricted.")
+            : t(dict, "当前字段留空，由另一个日期字段约束。", "This field stays empty and is controlled by the other date field.")}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CronTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
-  const [expression, setExpression] = useState("*/10 * * * *");
-  const [rows, setRows] = useState<string[]>([]);
+  const [editorMode, setEditorMode] = useState<CronEditorMode>("builder");
+  const [builderState, setBuilderState] = useState<CronBuilderState>(() => createDefaultCronBuilderState());
+  const [manualExpression, setManualExpression] = useState(defaultManualCronExpression);
+  const [rows, setRows] = useState<CronNextRunRow[]>([]);
   const [message, setMessage] = useState("");
 
-  async function calculate() {
-    try {
-      const parser = await import("cron-parser");
-      const cronExpressionParser = parser.CronExpressionParser ?? parser.default;
-      const parseExpression = cronExpressionParser?.parse;
-      if (!parseExpression) {
-        throw new Error(t(dict, "Cron 解析器不可用", "Cron parser not available"));
+  const builderExpression = useMemo(() => buildCronExpressionFromState(builderState), [builderState]);
+  const expression = editorMode === "builder" ? builderExpression : manualExpression.trim();
+  const fieldPreview = useMemo(() => buildCronFieldPreview(dict, expression), [dict, expression]);
+  const intlLocale = useMemo(() => getIntlLocale(dict.locale), [dict.locale]);
+  const formatters = useMemo(
+    () => ({
+      date: new Intl.DateTimeFormat(intlLocale, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+      weekday: new Intl.DateTimeFormat(intlLocale, { weekday: "long" }),
+      time: new Intl.DateTimeFormat(intlLocale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }),
+    }),
+    [intlLocale],
+  );
+  const timezoneLabel = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "Local", []);
+  const fieldCount = fieldPreview.length;
+  const fieldCountLabel =
+    fieldCount === 6 ? t(dict, "6 字段", "6 fields") : fieldCount === 5 ? t(dict, "5 字段", "5 fields") : t(dict, "待输入", "Pending");
+  const expressionLabel = expression || t(dict, "等待输入表达式", "Waiting for an expression");
+
+  useEffect(() => {
+    let disposed = false;
+
+    async function calculate() {
+      const trimmed = expression.trim();
+      if (!trimmed) {
+        if (!disposed) {
+          setRows([]);
+          setMessage("");
+        }
+        return;
       }
-      const interval = parseExpression(expression.trim());
-      const next = Array.from({ length: 10 }, () =>
-        dayjs(interval.next().toDate()).format("YYYY-MM-DD HH:mm:ss"),
-      );
-      setRows(next);
-      setMessage("");
-    } catch (error) {
-      setRows([]);
-      setMessage(error instanceof Error ? error.message : t(dict, "Cron 表达式无效", "Invalid cron expression"));
+
+      const parts = trimmed.split(/\s+/).filter(Boolean);
+      if (parts.length !== 5 && parts.length !== 6) {
+        if (!disposed) {
+          setRows([]);
+          setMessage(t(dict, "请填写 5 个或 6 个 cron 字段", "Please provide 5 or 6 cron fields"));
+        }
+        return;
+      }
+
+      try {
+        const parser = await import("cron-parser");
+        const cronExpressionParser = parser.CronExpressionParser ?? parser.default;
+        const parseExpression = cronExpressionParser?.parse;
+        if (!parseExpression) {
+          throw new Error(t(dict, "Cron 解析器不可用", "Cron parser not available"));
+        }
+
+        const interval = parseExpression(trimmed);
+        const next = Array.from({ length: 10 }, (_, index) => {
+          const value = interval.next().toDate();
+          return {
+            id: index + 1,
+            date: formatters.date.format(value),
+            weekday: formatters.weekday.format(value),
+            time: formatters.time.format(value),
+            iso: value.toISOString(),
+          };
+        });
+
+        if (!disposed) {
+          setRows(next);
+          setMessage("");
+        }
+      } catch (error) {
+        if (!disposed) {
+          setRows([]);
+          setMessage(
+            error instanceof Error ? error.message : t(dict, "Cron 表达式无效", "Invalid cron expression"),
+          );
+        }
+      }
     }
+
+    void calculate();
+
+    return () => {
+      disposed = true;
+    };
+  }, [dict, expression, formatters]);
+
+  function updateBuilderField(key: CronFieldKey, patch: Partial<CronFieldState>) {
+    setBuilderState((current) => ({
+      ...current,
+      [key]: {
+        ...current[key],
+        ...patch,
+      },
+    }));
+  }
+
+  function applyPreset(presetId: string) {
+    setEditorMode("builder");
+    setBuilderState(createCronPresetState(presetId));
   }
 
   return (
     <ToolCard title="Crontab">
-      <Field label={t(dict, "表达式", "Expression")}>
-        <Input value={expression} onChange={(event) => setExpression(event.target.value)} />
-      </Field>
-      <Button type="button" onClick={calculate} color="primary">
-        {dict.calculate}
-      </Button>
-      {message ? (
-        <Alert
-          color="danger"
-          title={t(dict, "表达式无效", "Invalid expression")}
-          description={message}
-        />
-      ) : null}
-      <div className="space-y-2">
-        {rows.map((row, index) => (
-          <div
-            key={`${row}-${index}`}
-            className="flex items-center justify-between rounded-md border border-border px-4 py-3 text-sm"
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+        <WorkbenchPanel
+          className="content-start self-start gap-4 p-4 sm:p-5"
+          contentClassName="gap-4"
+          title={
+            <span className="flex items-center gap-2">
+              <WandSparkles className="h-5 w-5 text-foreground/70" />
+              {t(dict, "表达式生成器", "Expression builder")}
+            </span>
+          }
+        >
+          <Tabs
+            value={editorMode}
+            onValueChange={(value) => setEditorMode(value as CronEditorMode)}
+            className="grid content-start gap-4"
           >
-            <span>#{index + 1}</span>
-            <span>{row}</span>
-          </div>
-        ))}
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="builder">{t(dict, "可视化生成", "Visual builder")}</TabsTrigger>
+              <TabsTrigger value="manual">{t(dict, "直接输入", "Manual input")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="builder" className="mt-0 grid content-start gap-4">
+              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                  {
+                    id: "every-5-minutes",
+                    label: t(dict, "每 5 分钟", "Every 5 minutes"),
+                    description: t(dict, "适合轮询或健康检查。", "Good for polling or health checks."),
+                  },
+                  {
+                    id: "hourly",
+                    label: t(dict, "每小时整点", "Hourly on the hour"),
+                    description: t(dict, "每小时的 00 分执行。", "Runs at minute 00 every hour."),
+                  },
+                  {
+                    id: "daily",
+                    label: t(dict, "每天 09:00", "Daily at 09:00"),
+                    description: t(dict, "固定每天早上执行。", "Runs every morning at a fixed time."),
+                  },
+                  {
+                    id: "workdays",
+                    label: t(dict, "工作日 09:00", "Weekdays at 09:00"),
+                    description: t(dict, "周一到周五定时执行。", "Runs Monday through Friday."),
+                  },
+                  {
+                    id: "monthly",
+                    label: t(dict, "每月 1 日 09:00", "1st day monthly"),
+                    description: t(dict, "每月第一天固定执行。", "Runs on the first day of each month."),
+                  },
+                ].map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset.id)}
+                    className="grid gap-1 rounded-2xl border border-border/70 bg-background/80 px-3.5 py-3 text-left transition-colors hover:bg-muted/30"
+                  >
+                    <span className="text-sm font-medium">{preset.label}</span>
+                    <span className="text-xs text-muted-foreground">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="grid content-start gap-4 lg:grid-cols-2">
+                {cronFieldDefinitions.map((definition) => (
+                  <CronFieldCard
+                    key={definition.key}
+                    dict={dict}
+                    definition={definition}
+                    value={builderState[definition.key]}
+                    onChange={(patch) => updateBuilderField(definition.key, patch)}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+            <TabsContent value="manual" className="mt-0 grid content-start gap-4">
+              <Alert
+                title={t(dict, "支持 5 字段或 6 字段", "Supports 5 or 6 fields")}
+                description={t(
+                  dict,
+                  "兼容传统 crontab 与 Quartz 常见语法（如 ?、MON-FRI），但不包含 year 字段。",
+                  "Works with classic crontab and common Quartz syntax (such as ? and MON-FRI), but does not include a year field.",
+                )}
+              />
+              <Field label={t(dict, "Cron 表达式", "Cron expression")}>
+                <Input
+                  value={manualExpression}
+                  onChange={(event) => setManualExpression(event.target.value)}
+                  className="font-mono"
+                />
+              </Field>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={() => setManualExpression(defaultManualCronExpression)}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {t(dict, "恢复示例", "Reset sample")}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setEditorMode("builder")}>
+                  {t(dict, "切回生成器", "Back to builder")}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </WorkbenchPanel>
+
+        <div className="grid content-start gap-4">
+          <WorkbenchPanel
+            className="content-start self-start gap-4 p-4 sm:p-5"
+            contentClassName="gap-4"
+            title={
+              <span className="flex items-center gap-2">
+                <Clock3 className="h-5 w-5 text-foreground/70" />
+                {t(dict, "表达式预览", "Expression preview")}
+              </span>
+            }
+          >
+            <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="grid gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge>
+                      {editorMode === "builder" ? t(dict, "生成器模式", "Builder mode") : t(dict, "手动模式", "Manual mode")}
+                    </Badge>
+                    <Badge variant="outline">{fieldCountLabel}</Badge>
+                    <Badge variant="outline">{timezoneLabel}</Badge>
+                  </div>
+                  <code
+                    className={cn(
+                      "break-all text-base font-semibold sm:text-lg",
+                      !expression && "text-muted-foreground",
+                    )}
+                  >
+                    {expressionLabel}
+                  </code>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    editorMode === "builder"
+                      ? setBuilderState(createDefaultCronBuilderState())
+                      : setManualExpression(defaultManualCronExpression)
+                  }
+                >
+                  {t(dict, "重置", "Reset")}
+                </Button>
+              </div>
+              {fieldPreview.length ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {fieldPreview.map((field) => (
+                    <div
+                      key={`${field.shortLabel}-${field.value}`}
+                      className="flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1 text-xs"
+                    >
+                      <span className="text-muted-foreground">{field.shortLabel}</span>
+                      <span className="font-mono">{field.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {message ? (
+              <Alert
+                color="danger"
+                title={t(dict, "表达式无效", "Invalid expression")}
+                description={message}
+              />
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {fieldPreview.map((field) => (
+                <div
+                  key={`${field.label}-${field.value}`}
+                  className="grid gap-2 rounded-2xl border border-border/70 bg-background/70 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">{field.label}</span>
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {field.value}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{field.description}</p>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
+
+          <WorkbenchPanel
+            className="content-start self-start gap-4 p-4 sm:p-5"
+            contentClassName="gap-4"
+            title={
+              <span className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-foreground/70" />
+                {t(dict, "未来执行时间", "Next runs")}
+              </span>
+            }
+          >
+            <div className="overflow-hidden rounded-xl border border-border">
+              <Table aria-label={t(dict, "Cron 未来执行时间", "Upcoming cron runs")}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>{t(dict, "日期", "Date")}</TableHead>
+                    <TableHead>{t(dict, "星期", "Weekday")}</TableHead>
+                    <TableHead>{t(dict, "时间", "Time")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.length ? (
+                    rows.map((row) => (
+                      <TableRow key={row.iso}>
+                        <TableCell className="font-medium">{row.id}</TableCell>
+                        <TableCell>{row.date}</TableCell>
+                        <TableCell>{row.weekday}</TableCell>
+                        <TableCell className="font-mono">{row.time}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                        {message
+                          ? t(dict, "修正表达式后这里会重新显示结果。", "Fix the expression to see upcoming runs again.")
+                          : t(dict, "开始设置表达式后，这里会显示未来执行时间。", "Start building an expression to see upcoming runs here.")}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {t(
+                  dict,
+                  "如果只是想要一个常见定时规则，优先用上面的预设；如果你已经有现成表达式，可以切到“直接输入”继续调试。",
+                  'Use the presets first for common schedules, or switch to "Manual input" if you already have an expression to debug.',
+                )}
+              </span>
+            </div>
+          </WorkbenchPanel>
+        </div>
       </div>
     </ToolCard>
   );
@@ -3279,18 +4136,18 @@ function GoStructJsonTool({ dict }: { dict: ReturnType<typeof getDictionary> }) 
         <Field label="Go">
           <CodeEditor height={400} language="go" value={goText} onChange={setGoText} />
         </Field>
+        <StackedPanelActions>
+          <Button type="button" onClick={() => setJsonText(goStructToJson(goText))} color="primary">
+            Go → JSON
+          </Button>
+          <Button type="button" onClick={() => setGoText(jsonToGoStruct(jsonText))} color="primary">
+            JSON → Go
+          </Button>
+        </StackedPanelActions>
         <Field label="JSON">
           <CodeEditor height={400} language="json" value={jsonText} onChange={setJsonText} />
         </Field>
       </FormStack>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => setJsonText(goStructToJson(goText))} color="primary">
-          Go → JSON
-        </Button>
-        <Button type="button" onClick={() => setGoText(jsonToGoStruct(jsonText))} color="primary">
-          JSON → Go
-        </Button>
-      </div>
     </ToolCard>
   );
 }
@@ -3319,14 +4176,16 @@ function LessToCssTool({ dict }: { dict: ReturnType<typeof getDictionary> }) {
         <Field label="Less">
           <CodeEditor height={400} language="less" value={lessCode} onChange={setLessCode} />
         </Field>
+        <StackedPanelActions>
+          <Button type="button" onClick={convert} disabled={busy} color="primary">
+            {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
+            {dict.convert}
+          </Button>
+        </StackedPanelActions>
         <Field label="CSS">
           <CodeEditor height={400} language="css" readOnly value={cssCode} />
         </Field>
       </FormStack>
-      <Button type="button" onClick={convert} disabled={busy} color="primary">
-        {busy ? <LoaderCircle className="size-4 animate-spin" /> : null}
-        {dict.convert}
-      </Button>
     </ToolCard>
   );
 }
